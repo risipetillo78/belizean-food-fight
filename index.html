@@ -2,8 +2,17 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>Belizean Food Fight</title>
+    
+    <!-- Open Graph meta tags for Facebook sharing -->
+    <meta property="og:title" content="Belizean Food Fight">
+    <meta property="og:description" content="Play the exciting Belizean Food Fight game! Can you beat my score?">
+    <meta property="og:image" content="https://i.imgur.com/im2FUlv.png">
+    <meta property="og:image:width" content="1200">
+    <meta property="og:image:height" content="630">
+    <meta property="og:url" content="https://risipetillo78.github.io/belizean-food-fight/">
+    <meta property="og:type" content="website">
     
     <!-- Add favicon link to prevent 404 error -->
     <link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>🌶️</text></svg>">
@@ -18,14 +27,46 @@
     <script src="sketch.js"></script>
     
     <style>
-        body {
+        html, body {
             margin: 0;
             padding: 0;
-            overflow: hidden;
             background-color: #000;
+            overflow: hidden; /* Changed from auto to hidden for desktop */
+            height: 100%;
+            width: 100%;
         }
+        
+        /* Container for the canvas to ensure proper centering */
+        body {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
         canvas {
             display: block;
+            max-width: 100%;
+            max-height: 100vh; /* Ensure it doesn't exceed viewport height */
+            width: auto !important;
+            height: auto !important;
+            object-fit: contain; /* Maintain aspect ratio */
+        }
+        
+        /* Media query for mobile devices */
+        @media (max-width: 800px) {
+            html, body {
+                overflow: auto; /* Allow scrolling on mobile for pull-to-refresh */
+                position: relative;
+            }
+            
+            canvas {
+                width: 100% !important;
+                height: 100% !important;
+                position: absolute;
+                top: 0;
+                left: 0;
+                touch-action: pan-y; /* Allow vertical touch actions like pull-to-refresh */
+            }
         }
     </style>
 </head>

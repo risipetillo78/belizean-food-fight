@@ -153,13 +153,18 @@ let mobileUI = {
     height: 30,
     marieSharp: {
       x: 0,
-      width: 200
+      y: 0,
+      width: 0,
+      height: 0
     },
     exploring: {
       x: 0,
-      width: 200
+      y: 0,
+      width: 0,
+      height: 0
     }
-  }
+  },
+  creator: null // Will be set when drawing the creator logo
 };
 
 // Add a global variable for the blinking effect
@@ -444,16 +449,64 @@ function removeAllFormElements() {
 
 // Setup canvas
 function setup() {
-  // Create larger canvas with performance optimization
-  let canvas = createCanvas(1000, 750); // Increased from 800x600
-  canvas.drawingContext.canvas.willReadFrequently = true;
+  // For mobile devices, use the full window size
+  if (detectMobileDevice()) {
+    // Create canvas with exact window dimensions
+    let canvas = createCanvas(windowWidth, windowHeight);
+    console.log("Mobile device detected, canvas size:", windowWidth, windowHeight);
+    
+    // Modified mobile settings to allow pull-to-refresh
+    // Use less restrictive overflow settings
+    document.body.style.overflow = 'auto';
+    document.documentElement.style.overflow = 'auto';
+    
+    // Instead of fixed position, use a different approach to prevent unwanted scrolling
+    // while still allowing pull-to-refresh
+    document.body.style.margin = '0';
+    document.body.style.padding = '0';
+    document.body.style.touchAction = 'pan-y'; // Allow vertical touch actions (like pull-to-refresh)
+    
+    // Add event listener to prevent default behavior for most touch events
+    // but still allow the pull-to-refresh gesture
+    document.addEventListener('touchmove', function(e) {
+      // Allow the default behavior if the user is pulling down at the top of the page
+      // (which is the pull-to-refresh gesture)
+      if (window.scrollY === 0 && e.touches[0].clientY > 0) {
+        // This is likely a pull-to-refresh gesture, so allow it
+        return true;
+      }
+      
+      // For all other touch movements, prevent default to avoid unwanted scrolling
+      if (e.touches.length === 1) {
+        e.preventDefault();
+      }
+    }, { passive: false });
+    
+    // Force redraw after a short delay to ensure proper sizing
+    setTimeout(() => {
+      console.log("Forcing redraw with size:", windowWidth, windowHeight);
+      resizeCanvas(windowWidth, windowHeight);
+    }, 100);
+  } else {
+    // For desktop, use fixed size
+    createCanvas(1000, 800);
+  }
   
   // Add this at the beginning of your setup function
   detectMobileDevice();
   
-  // Center the canvas on the page
-  canvas.style('display', 'block');
-  canvas.style('margin', 'auto');
+  // Center the canvas on the page - fixed style property access
+  let canvasElement = document.getElementById('defaultCanvas0');
+  if (canvasElement) {
+    canvasElement.style.display = 'block';
+    canvasElement.style.margin = 'auto';
+    
+    // Ensure the canvas is properly sized
+    if (isMobileDevice) {
+      canvasElement.style.width = '100%';
+      canvasElement.style.height = '100%';
+    }
+  }
   
   // Set text properties
   textFont('Courier New');
@@ -546,6 +599,19 @@ function setup() {
 }
 
 function windowResized() {
+  // Resize canvas for mobile devices
+  if (detectMobileDevice()) {
+    resizeCanvas(windowWidth, windowHeight);
+    console.log("Mobile window resized, new canvas size:", windowWidth, windowHeight);
+    
+    // Update canvas element styles
+    let canvasElement = document.getElementById('defaultCanvas0');
+    if (canvasElement) {
+      canvasElement.style.width = '100%';
+      canvasElement.style.height = '100%';
+    }
+  }
+  
   // Get the canvas element
   let canvas = document.getElementById('defaultCanvas0');
   if (!canvas) return;
@@ -1451,6 +1517,8 @@ function drawShareButton(x, y) {
     shareMessage += " My score: " + finalScore;
   }
   
+  // Use the Facebook sharer URL which will pick up the Open Graph meta tags
+  // This ensures the image specified in og:image will be included in the share
   let shareUrl = "https://www.facebook.com/sharer/sharer.php?u=" + encodeURIComponent(window.location.href) + "&quote=" + encodeURIComponent(shareMessage);
   
   // Store the share URL for use in mousePressed
@@ -1501,8 +1569,8 @@ function mousePressed() {
       return;
     }
     
-    // Check if share button was clicked
-    if (mouseX > width/2 - 70 && mouseX < width/2 + 70 && mouseY > footerY - 15 && mouseY < footerY + 15) {
+    // Check if share button was clicked (adjusted for new position 20px higher)
+    if (mouseX > width/2 - 70 && mouseX < width/2 + 70 && mouseY > footerY - 35 && mouseY < footerY - 5) {
       if (window.shareUrl) {
         window.open(window.shareUrl, '_blank');
       }
@@ -1658,7 +1726,9 @@ function mousePressed() {
 // Update drawSocialUI to use the new drawShareButton function
 function drawSocialUI() {
   const footerY = height - 30;
-  drawShareButton(width/2, footerY);
+  
+  // Draw Share on Facebook button 20px higher than before
+  drawShareButton(width/2, footerY - 20);
 }
 
 // Update drawArcadeBackground to ensure it covers the entire screen
@@ -3731,7 +3801,7 @@ function addScreenShake(intensity) {
 function detectMobileDevice() {
   // Check if the device is mobile based on screen size and user agent
   const userAgent = navigator.userAgent.toLowerCase();
-  const isMobile = /iphone|ipad|ipod|android|blackberry|mini|windows\sce|palm/i.test(userAgent);
+  const isMobile = /iphone|ipod|android|blackberry|mini|windows\sce|palm/i.test(userAgent);
   const isTablet = /tablet|ipad|playbook|silk|android(?!.*mobile)/i.test(userAgent);
   
   // Also check screen size as a backup method
@@ -3740,106 +3810,149 @@ function detectMobileDevice() {
   // Set the flag if any of the checks indicate a mobile device
   isMobileDevice = isMobile || isTablet || touchScreen;
   
-  console.log("Device detection: " + (isMobileDevice ? "Mobile/Tablet" : "Desktop"));
+  // Log detailed device information for debugging
+  console.log("Device detection details:");
+  console.log("- User Agent:", userAgent);
+  console.log("- Window Size:", window.innerWidth, "x", window.innerHeight);
+  console.log("- Is Mobile:", isMobile);
+  console.log("- Is Tablet:", isTablet);
+  console.log("- Touch Screen:", touchScreen);
+  console.log("- Final Decision:", isMobileDevice ? "Mobile/Tablet" : "Desktop");
+  
+  return isMobileDevice;
 }
 
 // Update the drawMobileWarning function to place sponsor logos side by side
 function drawMobileWarning() {
+  // Clear the background
   background(0);
+  
+  // Log canvas dimensions for debugging
+  console.log("Drawing mobile warning on canvas:", width, "x", height);
   
   // Draw grid background similar to the arcade background
   push();
   stroke(20, 20, 40);
   strokeWeight(1);
   
+  // Draw responsive grid lines based on screen size
+  const gridSize = min(30, width / 20); // Responsive grid size
+  
   // Draw vertical grid lines
-  for (let x = 0; x < width; x += 40) {
+  for (let x = 0; x < width; x += gridSize) {
     line(x, 0, x, height);
   }
   
   // Draw horizontal grid lines
-  for (let y = 0; y < height; y += 40) {
+  for (let y = 0; y < height; y += gridSize) {
     line(0, y, width, y);
   }
   pop();
   
-  // Draw game logo at the top with 40% larger size
+  // Calculate responsive spacing based on screen height
+  const topMargin = height * 0.05;
+  const contentWidth = min(width * 0.9, 500); // Limit maximum width
+  
+  // Draw game logo at the top with responsive sizing
   if (gameLogo) {
-    const logoWidth = min(width * 0.8, 500) * 1.4; // Increased by 40%
+    // Make logo smaller and centered
+    const logoWidth = min(width * 0.8, 300);
     const logoHeight = logoWidth * (gameLogo.height / gameLogo.width);
-    image(gameLogo, width/2 - logoWidth/2, 50, logoWidth, logoHeight);
+    
+    // Center the logo horizontally
+    const logoX = width/2 - logoWidth/2;
+    const logoY = topMargin;
+    
+    image(gameLogo, logoX, logoY, logoWidth, logoHeight);
+    console.log("Drawing logo at:", logoX, logoY, logoWidth, logoHeight);
   }
   
   // Update blink timer (oscillates between 0 and 1 every second)
   warningBlinkTimer = (warningBlinkTimer + 0.05) % 2;
   const blinkAlpha = warningBlinkTimer < 1 ? 255 : 200; // Blink effect
   
-  // Draw warning text with wrapping for smaller screens
+  // Calculate positions based on logo
+  const logoHeight = gameLogo ? min(width * 0.8, 300) * (gameLogo.height / gameLogo.width) : 0;
+  const warningY = topMargin + logoHeight + height * 0.05;
+  
+  // Draw warning text with improved wrapping
   textAlign(CENTER, CENTER);
   
   // Main warning text - bold, yellow, and blinking
-  textSize(min(24, width/25)); // Responsive text size
+  const warningTextSize = min(24, width/20);
+  textSize(warningTextSize);
   fill(255, 255, 0, blinkAlpha); // Yellow with blinking effect
   textStyle(BOLD); // Make text bold
   
-  const warningText = "This game is designed for desktop browsers";
-  if (width < 500) {
-    // For very small screens, split into multiple lines
-    const words = warningText.split(' ');
-    const line1 = words.slice(0, 3).join(' ');
-    const line2 = words.slice(3).join(' ');
-    text(line1, width/2, height/2 - 70);
-    text(line2, width/2, height/2 - 40);
+  // Always split the text into two lines for better readability on mobile
+  text("This game is designed", width/2, warningY);
+  text("for desktop browsers!", width/2, warningY + warningTextSize * 1.2);
+  
+  // Secondary warning text
+  textStyle(NORMAL);
+  const secondaryTextSize = min(18, width/25);
+  textSize(secondaryTextSize);
+  fill(255);
+  
+  const secondaryY = warningY + warningTextSize * 2.5;
+  
+  // Always split the secondary text into two lines for better readability
+  text("Please visit on a desktop computer", width/2, secondaryY);
+  text("for the best experience.", width/2, secondaryY + secondaryTextSize * 1.2);
+  
+  // Draw leaderboard button with improved positioning - moved down further by 50px total
+  const btnY = secondaryY + secondaryTextSize * 5 + 50; // Added 50px to move it down (20px + 30px more)
+  const btnWidth = min(250, width * 0.7);
+  const btnHeight = min(50, height * 0.07);
+  
+  mobileUI.leaderboardBtn = {
+    x: width/2,
+    y: btnY,
+    width: btnWidth,
+    height: btnHeight
+  };
+  
+  // Draw button with hover effect
+  if (mouseX > width/2 - btnWidth/2 && 
+      mouseX < width/2 + btnWidth/2 &&
+      mouseY > btnY - btnHeight/2 &&
+      mouseY < btnY + btnHeight/2) {
+    fill(80, 80, 220); // Lighter blue on hover
   } else {
-    text(warningText, width/2, height/2 - 50);
+    fill(50, 50, 200);
   }
   
-  // Secondary warning text - also split if needed
-  textStyle(NORMAL); // Reset to normal text style
-  textSize(min(18, width/30)); // Responsive text size
-  fill(255); // White color for secondary text
+  rect(width/2 - btnWidth/2, 
+       btnY - btnHeight/2, 
+       btnWidth, btnHeight, 10);
   
-  const secondaryText = "Please visit on a computer for the best experience";
-  if (width < 500) {
-    const words = secondaryText.split(' ');
-    const line1 = words.slice(0, 4).join(' ');
-    const line2 = words.slice(4).join(' ');
-    text(line1, width/2, height/2 - 10);
-    text(line2, width/2, height/2 + 10);
-  } else {
-    text(secondaryText, width/2, height/2 - 10);
+  fill(255);
+  textSize(min(20, width/25));
+  text("VIEW LEADERBOARD", width/2, btnY);
+  
+  // Calculate footer position - moved up by 60px (30px more)
+  const footerY = height * 0.8 - 60;
+  
+  // Draw sponsor and creator sections at the bottom (swapped order)
+  drawMobileCreditsAndSponsors(footerY);
+}
+
+// Update the drawMobileCreditsAndSponsors function to swap the order of "Created by" and "Sponsored by" sections
+function drawMobileCreditsAndSponsors(yPosition) {
+  // Draw "Sponsored by" section first (moved up by 15px)
+  textSize(min(16, width/30));
+  fill(255);
+  textAlign(CENTER, CENTER);
+  text("Sponsored by:", width/2, yPosition - 15);
+  
+  // Calculate logo dimensions and positions - increased by 40%
+  const logoHeight = min(25 * 1.4, height * 0.045);
+  const spacing = min(20, width * 0.05);
+  
+  // Initialize sponsors object if it doesn't exist
+  if (!mobileUI.sponsors) {
+    mobileUI.sponsors = {};
   }
-  
-  // Draw leaderboard button
-  mobileUI.leaderboardBtn.x = width/2;
-  mobileUI.leaderboardBtn.y = height/2 + 70; // Moved down to accommodate possible text wrapping
-  
-  // Responsive button size
-  mobileUI.leaderboardBtn.width = min(200, width * 0.8);
-  mobileUI.leaderboardBtn.height = 50;
-  
-  fill(50, 50, 200);
-  rect(mobileUI.leaderboardBtn.x - mobileUI.leaderboardBtn.width/2, 
-       mobileUI.leaderboardBtn.y - mobileUI.leaderboardBtn.height/2, 
-       mobileUI.leaderboardBtn.width, mobileUI.leaderboardBtn.height, 10);
-  
-  fill(255);
-  textSize(min(20, width/25)); // Responsive text size
-  text("VIEW LEADERBOARD", mobileUI.leaderboardBtn.x, mobileUI.leaderboardBtn.y);
-  
-  // Calculate footer position
-  const footerY = height - 120;
-  
-  // Draw sponsors heading
-  textSize(min(16, width/30)); // Responsive text size
-  fill(255);
-  text("Sponsored by:", width/2, footerY);
-  
-  // Always use horizontal layout for sponsors
-  const sponsorY = footerY + 30;
-  
-  // Calculate logo dimensions
-  const logoHeight = 30; // Fixed height for both logos
   
   // Calculate Fencepost logo dimensions
   let fencepostWidth = 0;
@@ -3853,95 +3966,99 @@ function drawMobileWarning() {
     exploringWidth = logoHeight * (exploringBelizeLogo.width / exploringBelizeLogo.height);
   }
   
-  // Calculate total width and spacing
+  // Calculate total width and positions
   const totalWidth = fencepostWidth + exploringWidth;
-  const spacing = min(40, width * 0.1); // Space between logos (responsive)
   const totalWidthWithSpacing = totalWidth + spacing;
   
-  // Calculate positions for both logos
+  // Position logos side by side
   const fencepostX = width/2 - totalWidthWithSpacing/2 + fencepostWidth/2;
   const exploringX = width/2 + totalWidthWithSpacing/2 - exploringWidth/2;
   
-  // Store positions for click detection
-  mobileUI.sponsors.marieSharp.x = fencepostX;
-  mobileUI.sponsors.marieSharp.y = sponsorY;
-  mobileUI.sponsors.exploring.x = exploringX;
-  mobileUI.sponsors.exploring.y = sponsorY;
-  
-  // Draw Fencepost Gear logo
+  // Draw Fencepost logo
   if (fencepostLogo) {
-    // Draw the logo centered at its position
     image(fencepostLogo, 
           fencepostX - fencepostWidth/2, 
-          sponsorY - logoHeight/2, 
+          yPosition + 5, // Adjusted for the moved up text
           fencepostWidth, logoHeight);
     
-    // Store logo dimensions for click detection
-    mobileUI.sponsors.marieSharp.width = fencepostWidth;
-    mobileUI.sponsors.marieSharp.height = logoHeight;
-  } else {
-    // Fallback to text if logo isn't loaded
-    fill(200, 50, 50); // Red for Fencepost Gear
-    text("Fencepost Gear", fencepostX, sponsorY);
-    
-    // Draw underline
-    const linkWidth = min(60, width/8);
-    stroke(200, 50, 50);
-    line(fencepostX - linkWidth, sponsorY + 5, 
-         fencepostX + linkWidth, sponsorY + 5);
-    noStroke();
+    // Store position for click detection
+    mobileUI.sponsors.fencepost = {
+      x: fencepostX,
+      y: yPosition + 5 + logoHeight/2,
+      width: fencepostWidth,
+      height: logoHeight,
+      url: "https://fencepostgear.com/"
+    };
   }
   
   // Draw Exploring Belize logo
   if (exploringBelizeLogo) {
-    // Draw the logo centered at its position
     image(exploringBelizeLogo, 
           exploringX - exploringWidth/2, 
-          sponsorY - logoHeight/2, 
+          yPosition + 5, // Adjusted for the moved up text
           exploringWidth, logoHeight);
     
-    // Store logo dimensions for click detection
-    mobileUI.sponsors.exploring.width = exploringWidth;
-    mobileUI.sponsors.exploring.height = logoHeight;
-  } else {
-    // Fallback to text if logo isn't loaded
-    const linkWidth = min(60, width/8);
-    fill(50, 150, 200); // Blue for Exploring Belize
-    text("Exploring Belize", exploringX, sponsorY);
-    
-    // Draw underline
-    stroke(50, 150, 200);
-    line(exploringX - linkWidth, sponsorY + 5, 
-         exploringX + linkWidth, sponsorY + 5);
-    noStroke();
+    // Store position for click detection
+    mobileUI.sponsors.exploringBelize = {
+      x: exploringX,
+      y: yPosition + 5 + logoHeight/2,
+      width: exploringWidth,
+      height: logoHeight,
+      url: "https://www.facebook.com/profile.php?id=61573064769739"
+    };
   }
   
-  // Draw credits below sponsors
-  textSize(min(14, width/35)); // Responsive text size
+  // Draw "Created by" section second (moved down)
+  const createdByY = yPosition + 60; // Position below the sponsor section
+  textSize(min(16, width/30));
   fill(255);
-  text("Created by Risi Avila", width/2, sponsorY + 40);
+  text("Created by:", width/2, createdByY);
+  
+  // Draw creator logo if available
+  if (risiLogo) {
+    // Fix aspect ratio - use the original image's aspect ratio
+    // Increased size by 40%
+    const logoWidth = min(50 * 1.4, width * 0.16);
+    const aspectRatio = risiLogo.width / risiLogo.height;
+    const logoHeight = logoWidth / aspectRatio;
+    const logoY = createdByY + 25;
+    
+    // Center the logo horizontally
+    image(risiLogo, width/2 - logoWidth/2, logoY, logoWidth, logoHeight);
+    
+    // Store position for click detection
+    mobileUI.creator = {
+      x: width/2,
+      y: logoY + logoHeight/2,
+      width: logoWidth,
+      height: logoHeight,
+      url: "https://www.facebook.com/risi.petillo"
+    };
+  } else {
+    // Fallback text
+    text("Risi Avila", width/2, createdByY + 30);
+  }
 }
 
-// Update the handleMobileTouch function to remove useVerticalLayout references
+// Update the handleMobileTouch function to work with the new layout
 function handleMobileTouch(x, y) {
   console.log("Mobile touch at:", x, y);
   
   // If showing mobile leaderboard, check for back button
   if (showingMobileLeaderboard) {
-    const backBtnY = height - 60;
-    
-    // Check if back button was clicked
-    if (abs(x - width/2) < 100 && abs(y - backBtnY) < 25) {
-      console.log("Mobile leaderboard back button clicked");
+    if (mobileUI.backBtn && 
+        abs(x - mobileUI.backBtn.x) < mobileUI.backBtn.width/2 && 
+        abs(y - mobileUI.backBtn.y) < mobileUI.backBtn.height/2) {
+      console.log("Mobile back button clicked");
       showingMobileLeaderboard = false;
       return true;
     }
-    
-    return false; // No other interactions in mobile leaderboard
+    return false;
   }
   
-  // Check if leaderboard button was clicked on warning screen
-  if (abs(x - mobileUI.leaderboardBtn.x) < mobileUI.leaderboardBtn.width/2 && 
+  // Check if leaderboard button was clicked
+  if (mobileUI.leaderboardBtn &&
+      abs(x - mobileUI.leaderboardBtn.x) < mobileUI.leaderboardBtn.width/2 && 
       abs(y - mobileUI.leaderboardBtn.y) < mobileUI.leaderboardBtn.height/2) {
     console.log("Mobile leaderboard button clicked");
     showingMobileLeaderboard = true;
@@ -3949,41 +4066,24 @@ function handleMobileTouch(x, y) {
     return true;
   }
   
-  // Check if Fencepost Gear logo was clicked
-  if (fencepostLogo && mobileUI.sponsors.marieSharp.width) {
-    if (abs(x - mobileUI.sponsors.marieSharp.x) < mobileUI.sponsors.marieSharp.width/2 && 
-        abs(y - mobileUI.sponsors.marieSharp.y) < mobileUI.sponsors.marieSharp.height/2) {
-      console.log("Fencepost Gear logo clicked");
-      window.open("https://fencepostgear.com", "_blank");
-      return true;
-    }
-  } else {
-    // Fallback to text-based click detection
-    const linkWidth = min(60, width/8);
-    if (abs(x - mobileUI.sponsors.marieSharp.x) < linkWidth && 
-        abs(y - mobileUI.sponsors.marieSharp.y) < 15) {
-      console.log("Fencepost Gear link clicked");
-      window.open("https://fencepostgear.com", "_blank");
-      return true;
-    }
+  // Check if creator logo was clicked
+  if (mobileUI.creator && 
+      abs(x - mobileUI.creator.x) < mobileUI.creator.width/2 && 
+      abs(y - mobileUI.creator.y) < mobileUI.creator.height/2) {
+    console.log("Creator logo clicked");
+    window.open(mobileUI.creator.url, '_blank');
+    return true;
   }
   
-  // Check if Exploring Belize logo was clicked
-  if (exploringBelizeLogo && mobileUI.sponsors.exploring.width) {
-    if (abs(x - mobileUI.sponsors.exploring.x) < mobileUI.sponsors.exploring.width/2 && 
-        abs(y - mobileUI.sponsors.exploring.y) < mobileUI.sponsors.exploring.height/2) {
-      console.log("ExploringBelize logo clicked");
-      window.open("https://www.facebook.com/profile.php?id=61573064769739", "_blank");
-      return true;
-    }
-  } else {
-    // Fallback to text-based click detection
-    const linkWidth = min(60, width/8);
-    if (abs(x - mobileUI.sponsors.exploring.x) < linkWidth && 
-        abs(y - mobileUI.sponsors.exploring.y) < 15) {
-      console.log("ExploringBelize link clicked");
-      window.open("https://www.facebook.com/profile.php?id=61573064769739", "_blank");
-      return true;
+  // Check if sponsor logos were clicked
+  if (mobileUI.sponsors) {
+    for (const sponsor in mobileUI.sponsors) {
+      const s = mobileUI.sponsors[sponsor];
+      if (abs(x - s.x) < s.width/2 && abs(y - s.y) < s.height/2) {
+        console.log("Sponsor logo clicked:", sponsor);
+        window.open(s.url, '_blank');
+        return true;
+      }
     }
   }
   
@@ -3992,158 +4092,156 @@ function handleMobileTouch(x, y) {
 
 // Create a dedicated mobile leaderboard function
 function drawMobileLeaderboard() {
-  // Draw arcade background
-  drawArcadeBackground();
+  // Clear the background
+  background(0);
   
-  // Draw game logo at the top (smaller than on warning screen)
-  let logoHeight = 0;
-  if (gameLogo) {
-    const logoWidth = min(width * 0.6, 300);
-    logoHeight = logoWidth * (gameLogo.height / gameLogo.width);
-    image(gameLogo, width/2 - logoWidth/2, 20, logoWidth, logoHeight);
+  // Log canvas dimensions for debugging
+  console.log("Drawing mobile leaderboard on canvas:", width, "x", height);
+  
+  // Draw grid background
+  push();
+  stroke(20, 20, 40);
+  strokeWeight(1);
+  
+  // Draw responsive grid lines based on screen size
+  const gridSize = min(30, width / 20);
+  
+  // Draw vertical grid lines
+  for (let x = 0; x < width; x += gridSize) {
+    line(x, 0, x, height);
   }
   
+  // Draw horizontal grid lines
+  for (let y = 0; y < height; y += gridSize) {
+    line(0, y, width, y);
+  }
+  pop();
+  
+  // Calculate responsive spacing
+  const topMargin = height * 0.05;
+  
+  // Draw game logo at the top with responsive sizing
+  if (gameLogo) {
+    const logoWidth = min(width * 0.7, 250);
+    const logoHeight = logoWidth * (gameLogo.height / gameLogo.width);
+    image(gameLogo, width/2 - logoWidth/2, topMargin, logoWidth, logoHeight);
+  }
+  
+  // Calculate logo height for positioning
+  const logoHeight = gameLogo ? min(width * 0.7, 250) * (gameLogo.height / gameLogo.width) : 0;
+  const titleY = topMargin + logoHeight + height * 0.05;
+  
   // Draw leaderboard title
-  fill(255, 255, 0);
-  textSize(min(32, width/15));
   textAlign(CENTER, CENTER);
+  textSize(min(32, width/15));
+  fill(255, 215, 0); // Gold color
   textStyle(BOLD);
-  text("LEADERBOARD", width/2, logoHeight + 60);
+  text("LEADERBOARD", width/2, titleY);
+  
+  // Draw leaderboard entries
+  const startY = titleY + height * 0.08;
+  const entryHeight = min(40, height * 0.06);
+  const maxEntries = min(8, Math.floor((height - startY - 100) / entryHeight)); // Ensure entries fit on screen
+  
+  textAlign(LEFT, CENTER);
+  textSize(min(16, width/30));
   textStyle(NORMAL);
   
-  // Draw loading message if data is still loading
-  if (mobileLeaderboardLoading) {
+  // Draw header
+  fill(200);
+  const rankWidth = width * 0.15;
+  const nameWidth = width * 0.5;
+  
+  text("RANK", width * 0.05, startY);
+  text("NAME", width * 0.05 + rankWidth, startY);
+  textAlign(RIGHT, CENTER);
+  text("SCORE", width * 0.95, startY);
+  textAlign(LEFT, CENTER);
+  
+  // Check if leaderboard data exists
+  if (!leaderboardData || leaderboardData.length === 0) {
+    textAlign(CENTER, CENTER);
     fill(255);
-    textSize(min(18, width/25));
-    text("Loading leaderboard data...", width/2, height/2);
-  } 
-  // Draw no data message if no entries
-  else if (!mobileLeaderboardData || mobileLeaderboardData.length === 0) {
-    fill(255);
-    textSize(min(18, width/25));
-    text("No leaderboard entries yet.", width/2, height/2);
-    text("Be the first to submit a score!", width/2, height/2 + 40);
-  } 
-  // Draw leaderboard entries
-  else {
-    // Calculate layout
-    const startY = logoHeight + 120;
-    const entryHeight = 60;
-    const maxEntries = min(10, mobileLeaderboardData.length);
-    
-    // Draw column headers
-    fill(150, 150, 255);
-    textSize(min(16, width/30));
+    text("No leaderboard data available", width/2, startY + entryHeight * 2);
     textAlign(LEFT, CENTER);
-    text("RANK", 20, startY - 30);
-    
-    textAlign(LEFT, CENTER);
-    text("NAME", 80, startY - 30);
-    
-    textAlign(RIGHT, CENTER);
-    text("SCORE", width - 20, startY - 30);
-    
-    // Draw horizontal line
-    stroke(150, 150, 255);
-    line(20, startY - 10, width - 20, startY - 10);
-    noStroke();
-    
+  } else {
     // Draw entries
-    for (let i = 0; i < maxEntries; i++) {
-      const entry = mobileLeaderboardData[i];
-      const entryY = startY + i * entryHeight;
+    for (let i = 0; i < min(leaderboardData.length, maxEntries); i++) {
+      const entry = leaderboardData[i];
+      const y = startY + (i + 1) * entryHeight;
       
-      // Highlight top 3
-      if (i < 3) {
-        // Gold, silver, bronze background
-        const colors = [
-          [255, 215, 0, 50],  // Gold
-          [192, 192, 192, 50], // Silver
-          [205, 127, 50, 50]   // Bronze
-        ];
-        
-        fill(...colors[i]);
-        rect(10, entryY - entryHeight/2, width - 20, entryHeight, 5);
+      // Alternate row colors
+      if (i % 2 === 0) {
+        fill(30, 30, 50, 150);
+        rect(width * 0.03, y - entryHeight/2, width * 0.94, entryHeight);
+      }
+      
+      // Highlight player's score if found and playerName is defined
+      if (typeof playerName !== 'undefined' && entry.name === playerName) {
+        fill(255, 215, 0, 100); // Gold highlight
+        rect(width * 0.03, y - entryHeight/2, width * 0.94, entryHeight);
       }
       
       // Draw rank
-      textAlign(LEFT, CENTER);
-      if (i < 3) {
-        // Emoji for top 3
-        const medals = ["🥇", "🥈", "🥉"];
-        fill(255);
-        textSize(min(24, width/20));
-        text(medals[i], 20, entryY);
-      } else {
-        fill(200);
-        textSize(min(18, width/25));
-        text(`${i+1}.`, 20, entryY);
-      }
-      
-      // Draw name and location
       fill(255);
-      textSize(min(18, width/25));
-      textAlign(LEFT, CENTER);
+      text("#" + (i + 1), width * 0.05, y);
       
-      // Name with location
-      let displayName = entry.name || "Unknown";
-      if (entry.location) {
-        displayName += ` (${entry.location})`;
-      }
-      
-      // Truncate if too long
-      if (displayName.length > 20) {
-        displayName = displayName.substring(0, 18) + "...";
-      }
-      
-      text(displayName, 80, entryY);
+      // Draw name (truncate if too long)
+      const displayName = entry.name.length > 12 ? entry.name.substring(0, 10) + "..." : entry.name;
+      text(displayName, width * 0.05 + rankWidth, y);
       
       // Draw score
-      fill(255, 255, 0);
       textAlign(RIGHT, CENTER);
-      text(entry.score || 0, width - 20, entryY);
+      text(entry.score, width * 0.95, y);
+      textAlign(LEFT, CENTER);
     }
-    
-    // Debug output to help diagnose issues
-    console.log("Drawing leaderboard with entries:", mobileLeaderboardData.length);
-    console.log("First entry:", mobileLeaderboardData[0]);
   }
   
-  // Draw back button
+  // Draw back button in the lower left corner
   const backBtnY = height - 60;
-  fill(50, 50, 200);
-  rect(width/2 - 100, backBtnY - 25, 200, 50, 10);
+  const backBtnWidth = min(120, width * 0.3); // Smaller width for corner placement
+  const backBtnHeight = min(50, height * 0.07);
+  const backBtnX = width * 0.1 + backBtnWidth/2; // Position in lower left corner
+  
+  mobileUI.backBtn = {
+    x: backBtnX,
+    y: backBtnY,
+    width: backBtnWidth,
+    height: backBtnHeight
+  };
+  
+  // Draw button with hover effect
+  if (mouseX > backBtnX - backBtnWidth/2 && 
+      mouseX < backBtnX + backBtnWidth/2 &&
+      mouseY > backBtnY - backBtnHeight/2 &&
+      mouseY < backBtnY + backBtnHeight/2) {
+    fill(80, 80, 220); // Lighter blue on hover
+  } else {
+    fill(50, 50, 200);
+  }
+  
+  textAlign(CENTER, CENTER);
+  rect(backBtnX - backBtnWidth/2, 
+       backBtnY - backBtnHeight/2, 
+       backBtnWidth, backBtnHeight, 10);
   
   fill(255);
-  textSize(min(20, width/20));
-  textAlign(CENTER, CENTER);
-  text("BACK", width/2, backBtnY);
-  
-  // Draw credits at the bottom
-  textSize(min(12, width/40));
-  fill(150);
-  textAlign(CENTER, CENTER);
-  text("Created by Risi Avila", width/2, height - 10);
+  textSize(min(20, width/25));
+  text("BACK", backBtnX, backBtnY);
 }
 
 // Function to fetch leaderboard data for mobile
 function fetchMobileLeaderboard() {
-  mobileLeaderboardLoading = true;
+  console.log("Fetching mobile leaderboard data");
   
-  // Reuse the existing fetchLeaderboard logic but store in our separate variable
-  supabase
-    .from('leaderboard')
-    .select('*')
-    .order('score', { ascending: false })
-    .then(response => {
-      console.log("Mobile leaderboard data fetched:", response.data);
-      mobileLeaderboardData = response.data || [];
-      mobileLeaderboardLoading = false;
-    })
-    .catch(error => {
-      console.error("Error fetching mobile leaderboard:", error);
-      mobileLeaderboardLoading = false;
-    });
+  // Use the same leaderboard data as the desktop version
+  if (leaderboardData && leaderboardData.length > 0) {
+    console.log("Using existing leaderboard data:", leaderboardData);
+    return;
+  }
+  
+  // If no data exists yet, fetch it
+  fetchLeaderboard();
 }
 
 // Add the drawCreditsAndSponsors function
