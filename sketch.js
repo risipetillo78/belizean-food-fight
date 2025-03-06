@@ -4376,5 +4376,5 @@ function drawCreditsAndSponsors() {
   cursor(ARROW);
   
   // Restore drawing state
-  pop();
+  pop(); 
 }
